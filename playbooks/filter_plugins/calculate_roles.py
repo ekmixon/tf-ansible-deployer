@@ -32,13 +32,12 @@ class FilterModule(object):
 
     def calculate_openstack_roles(self, existing_dict, instances_dict, global_configuration,
                                   contrail_configuration, kolla_config, hostvars):
-        # don't calculate anything if global_configuration.ENABLE_DESTROY is not set
-        empty_result = {"node_roles_dict": dict(),
-                        "deleted_nodes_dict": dict()}
         enable_destroy = global_configuration.get("ENABLE_DESTROY", True)
         if not isinstance(enable_destroy, bool):
             enable_destroy = str(enable_destroy).lower() == 'true'
         if not enable_destroy:
+                # don't calculate anything if global_configuration.ENABLE_DESTROY is not set
+            empty_result = {"node_roles_dict": {}, "deleted_nodes_dict": {}}
             return str(empty_result)
 
         self.os_roles = OpenstackCluster(instances_dict, contrail_configuration, kolla_config)
@@ -50,14 +49,17 @@ class FilterModule(object):
     def calculate_contrail_roles(self, existing_dict, api_server_list,
                                  instances_dict, global_configuration,
                                  contrail_configuration, kolla_config, hostvars):
-        # don't calculate anything if global_configuration.ENABLE_DESTROY is not set
-        empty_result = {"node_roles_dict": dict(),
-                        "deleted_nodes_dict": dict(),
-                        "api_server_ip": None}
         enable_destroy = global_configuration.get("ENABLE_DESTROY", True)
         if not isinstance(enable_destroy, bool):
             enable_destroy = str(enable_destroy).lower() == 'true'
         if not enable_destroy:
+                # don't calculate anything if global_configuration.ENABLE_DESTROY is not set
+            empty_result = {
+                "node_roles_dict": {},
+                "deleted_nodes_dict": {},
+                "api_server_ip": None,
+            }
+
             return str(empty_result)
 
         self.contrail_roles = ContrailCluster(
@@ -69,20 +71,17 @@ class FilterModule(object):
                     "api_server_ip": api_server_ip})
 
     def extract_roles(self, existing_roles, instance_data):
-        existing_roles[instance_data["key"]] = dict()
+        existing_roles[instance_data["key"]] = {}
         if not instance_data["value"]["roles"]:
             return existing_roles
 
         for role, data in instance_data["value"]["roles"].items():
-            ix_name = next((s for s in self.indexed_roles if s in role), None)
-            if not ix_name:
-                existing_roles[instance_data["key"]][role] = data
-            else:
-                # indexed role name must be equal to pattern ROLENAME_INDEX
-                index = role[len(ix_name) + 1:]
-                if index:
-                    existing_roles[instance_data["key"]].setdefault(ix_name, dict())[index] = data
+            if ix_name := next((s for s in self.indexed_roles if s in role), None):
+                if index := role[len(ix_name) + 1 :]:
+                    existing_roles[instance_data["key"]].setdefault(ix_name, {})[index] = data
 
+            else:
+                existing_roles[instance_data["key"]][role] = data
         return existing_roles
 
     def calculate_deleted_toragent_roles(self, cluster_roles_dict, instance_data):
@@ -128,23 +127,23 @@ class OpenstackCluster(object):
             self.node_name_ip_map[instance_name] = instance_config["ip"]
             self.node_ip_name_map[instance_config["ip"]] = instance_name
             if "roles" in instance_config \
-                    and isinstance(instance_config["roles"], dict):
+                        and isinstance(instance_config["roles"], dict):
                 instances[instance_name]['instance_roles'] = \
-                    list(
+                        list(
                         set(
                             instance_config["roles"].keys()
                         ).intersection(set(self.valid_roles)))
 
         try:
             instances, deleted_nodes_dict = \
-                self.discover_openstack_computes(instances, deleted_nodes_dict, hostvars)
+                    self.discover_openstack_computes(instances, deleted_nodes_dict, hostvars)
         except Exception:
             # either services are not installed yet or they are broken
-            return dict(), dict()
+            return {}, {}
 
         for server in instances:
             for role_list, list_of_roles in \
-                    instances[server].items():
+                        instances[server].items():
                 if len(list_of_roles) and "openstack" in list_of_roles:
                     list_of_roles.remove("openstack")
                     list_of_roles += self.os_params.openstack_controller_roles
@@ -156,7 +155,7 @@ class OpenstackCluster(object):
                 instances[server]['existing_roles'] = []
             else:
                 instances[server]['existing_roles'] =\
-                    list(set(instances[server]['existing_roles']))
+                        list(set(instances[server]['existing_roles']))
 
             instances[server]['new_roles'] = list(set(
                 instances[server]['instance_roles']
@@ -170,7 +169,7 @@ class OpenstackCluster(object):
             ))
 
             if len(instances[server]['deleted_roles']) and\
-                    (instances[server]['deleted_roles'] ==
+                        (instances[server]['deleted_roles'] ==
                         instances[server]['existing_roles']):
                 deleted_nodes_dict[server] = self.node_name_ip_map[server]
 
@@ -224,11 +223,11 @@ class OpenstackCluster(object):
             if port not in self.os_params.endpoint_port_role_map:
                 continue
 
-            openstack_role = "openstack_" + self.os_params.endpoint_port_role_map[port]
+            openstack_role = f"openstack_{self.os_params.endpoint_port_role_map[port]}"
             if ip in self.node_ip_name_map:
                 server_name = self.node_ip_name_map[ip]
                 if "existing_roles" not \
-                        in instances[server_name]:
+                            in instances[server_name]:
                     instances[server_name][
                         'existing_roles'] = []
                 instances[server_name][
@@ -304,20 +303,19 @@ class OpenStackParams(object):
         ks_tokens_url = self.ks_auth_url_endpoint_dict.get(
             self.ks_auth_url_version)
         if not ks_tokens_url:
-            raise Exception("Unknown keystone auth version {}".format(self.ks_auth_url_version))
+            raise Exception(f"Unknown keystone auth version {self.ks_auth_url_version}")
 
         if self.ks_auth_public_port != self.DEFAULT_KEYSTONE_AUTH_PORT:
             value = self.endpoint_port_role_map.pop(self.DEFAULT_KEYSTONE_AUTH_PORT)
             self.endpoint_port_role_map[self.ks_auth_public_port] = value
 
         if self.ks_auth_host:
-            base_url = "{}://{}:{}{}".format(
-                self.ks_auth_proto, self.ks_auth_host, self.ks_auth_public_port,
-                self.ks_auth_url_version)
+            base_url = f"{self.ks_auth_proto}://{self.ks_auth_host}:{self.ks_auth_public_port}{self.ks_auth_url_version}"
+
             self.ks_auth_url = base_url + ks_tokens_url
-            self.os_endpoints_url = base_url + '/endpoints'
-            self.os_hypervisors_url = "{}://{}:8774/v2.1/os-hypervisors/detail".format(
-                self.ks_auth_proto, self.ks_auth_host)
+            self.os_endpoints_url = f'{base_url}/endpoints'
+            self.os_hypervisors_url = f"{self.ks_auth_proto}://{self.ks_auth_host}:8774/v2.1/os-hypervisors/detail"
+
 
         if contrail_config.get("CLOUD_ORCHESTRATOR") == "openstack":
             self.get_ks_auth_token(contrail_config)
@@ -325,34 +323,26 @@ class OpenStackParams(object):
         # TODO: Implement other Auth methods
 
     def get_ks_token_request(self):
-        keystone_token_request = {
+        return {
             'auth': {
                 'identity': {
-                    'methods': [
-                        'password'
-                    ],
+                    'methods': ['password'],
                     'password': {
                         'user': {
-                            'domain': {
-                                'id': 'default'
-                            },
+                            'domain': {'id': 'default'},
                             'name': self.ks_admin_user,
-                            'password': self.ks_admin_password
+                            'password': self.ks_admin_password,
                         }
-                    }
+                    },
                 },
                 'scope': {
                     'project': {
-                        'domain': {
-                            'name': 'default'
-                        },
-                        'name': self.ks_admin_tenant
+                        'domain': {'name': 'default'},
+                        'name': self.ks_admin_tenant,
                     }
-                }
+                },
             }
         }
-
-        return keystone_token_request
 
     def get_ks_auth_token(self, contrail_config):
         try:
@@ -443,7 +433,7 @@ class ContrailCluster(object):
         self.cc_dict = contrail_config
         self.kolla_dict = kolla_config
         sslenable = contrail_config.get('SSL_ENABLE', False)
-        if str(sslenable) in ['True', 'TRUE', 'yes', 'YES', 'Yes']:
+        if str(sslenable) in {'True', 'TRUE', 'yes', 'YES', 'Yes'}:
             self.proto = 'https'
 
     def get_rest_api_response(self, url, headers, data=None, request_type=None):
@@ -457,7 +447,7 @@ class ContrailCluster(object):
 
     def calculate_valid_api_server_ip(self, api_server_list):
         for test_ip in api_server_list:
-            test_url = "{}://{}:{}".format(self.proto, test_ip, self.api_server_port)
+            test_url = f"{self.proto}://{test_ip}:{self.api_server_port}"
             try:
                 self.get_rest_api_response(
                     test_url,
@@ -490,7 +480,10 @@ class ContrailCluster(object):
         return ip
 
     def discover_contrail_cluster(self, instances, deleted_nodes_dict):
-        self.contrail_api_url = "{}://{}:{}/".format(self.proto, self.api_server_ip, self.api_server_port)
+        self.contrail_api_url = (
+            f"{self.proto}://{self.api_server_ip}:{self.api_server_port}/"
+        )
+
 
         for contrail_object, contrail_role in self.contrail_object_map.items():
             contrail_object_url = self.contrail_api_url + str(contrail_object)
@@ -514,7 +507,6 @@ class ContrailCluster(object):
                         vr_obj_list.append(vr_obj)
                         continue
 
-                    tor_config = {}
                     toragent_fq_name = vr_dict.get('fq_name')[-1]
                     toragent_ip = vr_dict.get('virtual_router_ip_address')
                     pr_href = vr_dict['physical_router_back_refs'][0].get('href')
@@ -525,9 +517,12 @@ class ContrailCluster(object):
                     pr_object_dict = response.json()
                     pr_name = pr_object_dict['physical-router']['name']
                     pr_vendor = pr_object_dict['physical-router']['physical_router_vendor_name']
-                    tor_config['tor_name'] = pr_name
-                    tor_config['pr_vendor'] = pr_vendor
-                    tor_config['toragent_ip'] = toragent_ip
+                    tor_config = {
+                        'tor_name': pr_name,
+                        'pr_vendor': pr_vendor,
+                        'toragent_ip': toragent_ip,
+                    }
+
                     self.existing_tor_agents[toragent_fq_name] = tor_config
 
                 object_list = vr_obj_list
@@ -554,14 +549,14 @@ class ContrailCluster(object):
                     deleted_nodes_dict[fq_name] = ip_address
                 elif 'instance_roles' not in instances[
                     instance_name] or \
-                        not len(instances[instance_name]['instance_roles']):
+                            not len(instances[instance_name]['instance_roles']):
                     if instance_name not in deleted_nodes_dict and \
-                            self.node_name_ip_map.get(instance_name, None):
+                                self.node_name_ip_map.get(instance_name, None):
                         deleted_nodes_dict[fq_name] = \
-                            self.node_name_ip_map[instance_name]
+                                self.node_name_ip_map[instance_name]
 
                 if 'existing_roles' not in instances[instance_name]:
-                    instances[instance_name]['existing_roles'] = list()
+                    instances[instance_name]['existing_roles'] = []
                 instances[instance_name]['existing_roles'].append(contrail_role)
 
         return instances, deleted_nodes_dict
@@ -578,9 +573,9 @@ class ContrailCluster(object):
             self.node_name_ip_map[instance_name] = instance_config["ip"]
             self.node_ip_name_map[instance_config["ip"]] = instance_name
             if "roles" in instance_config \
-                    and isinstance(instance_config["roles"], dict):
+                        and isinstance(instance_config["roles"], dict):
                 instances[instance_name]['instance_roles'] = \
-                    list(
+                        list(
                         set(
                             instance_config["roles"].keys()
                         ).intersection(set(self.valid_roles)))
@@ -596,7 +591,7 @@ class ContrailCluster(object):
         else:
             controller_node_list = None
         if isinstance(controller_node_list, list) and \
-                len(controller_node_list):
+                    len(controller_node_list):
             api_server_list = controller_node_list
         else:
             api_server_list = []
@@ -608,7 +603,7 @@ class ContrailCluster(object):
 
         if self.api_server_ip:
             instances, deleted_nodes_dict = \
-                self.discover_contrail_cluster(
+                    self.discover_contrail_cluster(
                     instances, deleted_nodes_dict)
 
         for server in instances:
@@ -631,8 +626,12 @@ class ContrailCluster(object):
             for toragent in self.existing_tor_agents:
                 server = toragent.split('-')[0]
                 tor_agent_id = toragent.split('-')[-1]
-                toragent_roles = {}
-                toragent_roles[('toragent_' + str(tor_agent_id))] = self.existing_tor_agents[toragent]
+                toragent_roles = {
+                    f'toragent_{str(tor_agent_id)}': self.existing_tor_agents[
+                        toragent
+                    ]
+                }
+
                 if server in instances:
                     instances[server]['existing_roles'].append(toragent_roles)
                 elif server not in deleted_nodes_dict:

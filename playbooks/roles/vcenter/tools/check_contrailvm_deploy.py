@@ -48,13 +48,8 @@ def get_args():
     return args
 
 def get_obj(si_content, vimtype, name):
-    obj = None
     container = si_content.viewManager.CreateContainerView(si_content.rootFolder, vimtype, True)
-    for c in container.view:
-        if c.name == name:
-            obj = c
-            break
-    return obj
+    return next((c for c in container.view if c.name == name), None)
 
 def main():
     args = get_args()

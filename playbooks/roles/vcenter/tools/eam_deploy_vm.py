@@ -60,20 +60,15 @@ def get_args():
     return args
 
 def get_obj(content, vimtype, name):
-    obj = None
     container = content.viewManager.CreateContainerView(content.rootFolder, vimtype, True)
-    for c in container.view:
-        if c.name == name:
-            obj = c
-            break
-    return obj
+    return next((c for c in container.view if c.name == name), None)
 
 def get_clusters_from_datacenter(datacenter):
-    clusters = {}
-    for child in datacenter.hostFolder.childEntity:
-        if isinstance(child, vim.ClusterComputeResource):
-            clusters[child.name] = child
-    return clusters
+    return {
+        child.name: child
+        for child in datacenter.hostFolder.childEntity
+        if isinstance(child, vim.ClusterComputeResource)
+    }
 
 def CreateAgencyConfig(si, args, scope):
     content = si.RetrieveContent()
@@ -148,9 +143,7 @@ def ConnectEAM(si, vpxdStub, sslContext):
                                       poolSize=0,
                                       sslContext=sslContext)
     eamStub.cookie = vpxdStub.cookie
-    eamCx = eam.EsxAgentManager("EsxAgentManager", eamStub)
-
-    return eamCx
+    return eam.EsxAgentManager("EsxAgentManager", eamStub)
 
 def main():
     args = get_args()

@@ -203,19 +203,14 @@ class FilterModule(object):
                 return grp_list
 
             for role in v.get('roles'):
-                for i, j in self.openstack_role_groups.items():
-                    if role in j:
-                        grp_list.append(i)
+                grp_list.extend(i for i, j in self.openstack_role_groups.items() if role in j)
             sub_grps = []
             for i, j in self.openstack_role_subgroups.items():
                 for grp in grp_list:
                     if grp in j:
                         sub_grps.append(i)
                         if i not in self.openstack_role_groups:
-                            for k, v in self.openstack_role_subgroups.items():
-                                if i in v:
-                                    sub_grps.append(k)
-
-            grp_list = grp_list + sub_grps
+                            sub_grps.extend(k for k, v in self.openstack_role_subgroups.items() if i in v)
+            grp_list += sub_grps
 
             return grp_list

@@ -27,28 +27,23 @@ def get_args():
     parser.add_argument('--num_ports', required=True, action='store', help='Name of ports to be added to port-group')
     parser.add_argument('--dvs_name', required=True, action='store', help='Name of the dv-switch to add portgroup to')
 
-    args = parser.parse_args()
-
-    return args
+    return parser.parse_args()
 
 def get_dvs_pg_obj(si_content, vimtype, portgroup_name, dvs_name):
-    obj = None
     container = si_content.viewManager.CreateContainerView(si_content.rootFolder, vimtype, True)
-    for c in container.view:
-        if c.name == portgroup_name:
-            if c.config.distributedVirtualSwitch.name == dvs_name:
-                obj = c
-                break
-    return obj
+    return next(
+        (
+            c
+            for c in container.view
+            if c.name == portgroup_name
+            and c.config.distributedVirtualSwitch.name == dvs_name
+        ),
+        None,
+    )
 
 def get_obj(si_content, vimtype, name):
-    obj = None
     container = si_content.viewManager.CreateContainerView(si_content.rootFolder, vimtype, True)
-    for c in container.view:
-        if c.name == name:
-            obj = c
-            break
-    return obj
+    return next((c for c in container.view if c.name == name), None)
 
 def wait_for_task(task, actionName='job', hideResult=False):
     while task.info.state == (vim.TaskInfo.State.running or vim.TaskInfo.State.queued):

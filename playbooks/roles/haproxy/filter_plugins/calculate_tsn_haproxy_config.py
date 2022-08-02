@@ -43,9 +43,7 @@ class FilterModule(object):
         return (None, None)
 
     def make_key(self, tsn1, tsn2):
-        if tsn1 < tsn2:
-            return tsn1 + "-" + tsn2
-        return tsn2 + "-" + tsn1
+        return f"{tsn1}-{tsn2}" if tsn1 < tsn2 else f"{tsn2}-{tsn1}"
 
     # Get HA proxy configuration for all TOR agents
     def calculate_tsn_haproxy_config(self, tsn_haproxy_config, toragent_hosts_list, instances, contrail_configuration):
@@ -84,8 +82,6 @@ class FilterModule(object):
             tsn2 = key.split('-')[1]
             for ovs_port in master_standby_dict[key]:
                 tsn_haproxy_port_list.append(ovs_port)
-                tsn_haproxy_ip_list.append(tsn1)
-                tsn_haproxy_ip_list.append(tsn2)
-
+                tsn_haproxy_ip_list.extend((tsn1, tsn2))
         return str({"IP_LIST": tsn_haproxy_ip_list,
                    "PORT_LIST": tsn_haproxy_port_list})

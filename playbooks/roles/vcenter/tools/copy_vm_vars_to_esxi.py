@@ -30,9 +30,7 @@ def get_args():
                         default=None,
                         help='MAC of ContrailVM.')
 
-    args = parser.parse_args()
-
-    return args
+    return parser.parse_args()
 
 def put_file(host, username, password, dirname, filename, mac):
     ssh = paramiko.SSHClient()
@@ -40,8 +38,8 @@ def put_file(host, username, password, dirname, filename, mac):
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     ssh.connect(host, username=username, password=password)
     sftp = ssh.open_sftp()
-    f = sftp.open(dirname + '/' + filename, 'w')
-    f.write('mac:' + mac + '\n')
+    f = sftp.open(f'{dirname}/{filename}', 'w')
+    f.write(f'mac:{mac}' + '\n')
     f.close()
     ssh.close()
 

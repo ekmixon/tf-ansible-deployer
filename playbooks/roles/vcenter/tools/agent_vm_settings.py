@@ -65,13 +65,8 @@ def get_args():
     return args
 
 def get_obj(content, vimtype, name):
-    obj = None
     container = content.viewManager.CreateContainerView(content.rootFolder, vimtype, True)
-    for c in container.view:
-        if c.name == name:
-            obj = c
-            break
-    return obj
+    return next((c for c in container.view if c.name == name), None)
 
 def update_agent_vm_setting(content, hostname, datastore_name, network_name):
     host = get_obj(content, [vim.HostSystem], hostname)

@@ -24,9 +24,7 @@ def get_args():
     parser.add_argument('--nics', required=True, action='store', help='Mac address of the VM')
     parser.add_argument('--vm_name', required=True, action='store', help='Name of the VM')
 
-    args = parser.parse_args()
-
-    return args
+    return parser.parse_args()
 
 def update_mac(nic, vm_obj, si_content):
     if nic:
@@ -50,11 +48,12 @@ def update_mac(nic, vm_obj, si_content):
                     break
             elif isinstance(dev.backing,
                   vim.vm.device.VirtualEthernetCard.DistributedVirtualPortBackingInfo):
-                # get dvs pg object and check if its supplied in args
-                dvs_pg = get_dvs_pg_obj(si_content,
-                                       [vim.dvs.DistributedVirtualPortgroup],
-                                       pg, switch_name)
-                if dvs_pg:
+                if dvs_pg := get_dvs_pg_obj(
+                    si_content,
+                    [vim.dvs.DistributedVirtualPortgroup],
+                    pg,
+                    switch_name,
+                ):
                     nic_spec.device = dev
                     nic_spec.device.macAddress = mac.strip()
                     nic_spec.device.addressType = 'manual'
